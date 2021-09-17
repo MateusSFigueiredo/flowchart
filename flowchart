@@ -1,0 +1,150 @@
+#
+# Simple flowchart with reactive values on R Shiny app
+#
+# Created by Mateus Silva Figueiredo
+# September 2021
+
+# Packages
+library(shiny)
+library(shinyvalidate) # validates numericInput values
+library(DiagrammeR)    # creates flowchart (flow diagram, fluxogram)
+
+# Example
+# Let's suppose you have a set amount of money to spend going to the movies.
+# You want set amounts to pay for tickets, and the rest to food.
+# You want a percentage to go to popcorn and the rest to candy.
+# You can create a flowchart to show how the money gets divided.
+
+### Define UI ###
+ui <- fluidPage(
+  
+  # Sidebar with numeric input
+  sidebarLayout(
+    sidebarPanel(h3("Flowchart creator",
+                    align="center"),
+                 numericInput("inputa",
+                              "Total money (A):",
+                              value = 150, # optional
+                              step="any",  #"any" avoids warnings
+                              max=10000,   # optional
+                              min=0),      # optional
+                 numericInput("inputb",
+                              "Tickets (B):",
+                              value = 60,
+                              step="any",
+                              max=100,
+                              min=0),
+                 numericInput("inputc",
+                              "Percentage for popcorn (C):",
+                              value = 40,
+                              step=1,
+                              max=100,
+                              min=0),
+                 submitButton("Update flowchart", icon("calculator")), # optional
+                 helpText("Add help text here"),
+                 helpText("Created by Mateus Silva Figueiredo"),
+                 verbatimTextOutput("vers") # To show version
+    ),
+    
+    # Show flowchart of successive calculations
+    mainPanel(
+      grVizOutput("dg",width ="95%",height="95%"), #Shows flowchart
+      helpText("Add more help text here.")
+    )
+  )
+)
+
+### Define server ###
+
+server <- function(input, output) { 
+
+  rv <<- reactive({
+    
+    #Makes some match with input values and keeps them in tibble rv()
+    #You can use previous values in the tibble to calculate following values
+    tibble::tibble(
+      money.total    = input$inputa,
+      price.tickets  = input$inputb,
+      perc.popcorn   = input$inputc,
+      money.food     = money.total - price.tickets,
+      money.popcorn  = money.food * perc.popcorn/100,
+      money.candy    = money.food - money.popcorn
+    ) #End of tibble
+  })
+  
+  #Define outputs to show in flowchart based on values on tibble
+  #The flowchart can't read inputs. It can only read values on the tibble.
+  output$money.total    = renderText({rv()$money.total   })
+  output$price.tickets  = renderText({rv()$price.tickets })
+  output$perc.popcorn   = renderText({rv()$perc.popcorn  })
+  output$money.food     = renderText({rv()$money.food    })
+  output$money.popcorn  = renderText({rv()$money.popcorn })
+  output$money.candy    = renderText({rv()$money.candy   })
+  
+  # Create flowchart with DOT language with DiagrammeR
+  # '@@1' means 'show text that is in front of the [1]' 
+  # Nodes can have numbers or words as names
+  output$dg <- renderGrViz({
+    grViz(diagram = "digraph flowchart {
+  
+  node [color = lightblue][shape = oval][style = filled][fontsize=25]
+  1 [label = '@@1']
+  
+  node [color = none, shape=none, style = filled][fontsize=15]
+  total [label= 'Total money (A)  = $@@1']
+  total->1 [arrowhead=vee]
+  {rank = same; 1; total;}
+ 
+  node [color = none, style = filled, shape=none][fontsize=15]
+  values [label= 'Tickets (B) = $@@2 \n % for popcorn (C) = @@6%']
+  1->values [arrowtail=vee] [arrowhead=vee] [dir=back]
+   {rank = same; 1; values;}
+
+  
+  node [color = lightblue, shape=oval, style = filled][fontsize=25]
+  2 [label = '@@2']
+  node [color = grey, style = filled]
+  3 [label = '@@3']
+  node [color = red, style = filled]
+  4 [label = '@@4']
+  5 [label = '@@5']
+ 
+ 
+  1->2 [xlabel='for \n tickets'];
+  1->3 [label='for food'];
+  3->4 [xlabel='for popcorn'];
+  3->5 [label='for candy']
+ 
+}
+ 
+  [1]: rv()$money.total
+  [2]: rv()$price.tickets
+  [3]: rv()$money.food
+  [4]: rv()$money.popcorn
+  [5]: rv()$money.candy
+  [6]: rv()$perc.popcorn
+ 
+") #end of flowchart in DOT language
+    
+  })
+  output$vers = renderText("Version 2021-09-17 18:30") #name of version
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+
+### Comments
+# The DOT language can create flowcharts of any size. Simply add more nodes and 
+# more arrows to suit your needs. Similarly, you can choose colors, font sizes,
+# arrow types, there are many options.
+# You can also make different math equations in the tibble to solve 
+# your specific problem.
+
+### Thanks
+# Special thanks to Ana Dickel from the "R Brasil - Programadores" Facebook group
+# and to all friends who checked other versions of this flowchart.
+# Thanks to additional help from:
+# Ronak Shah https://stackoverflow.com/questions/69060279/successive-calculations-in-shiny
+# mnist https://stackoverflow.com/questions/69145767/how-to-disable-the-numericinput-message-error-in-shiny
+# user20650 https://stackoverflow.com/questions/68793290/diagrammer-digraph-flowchart-position-and-direction-of-labels-on-arrows
+# 
